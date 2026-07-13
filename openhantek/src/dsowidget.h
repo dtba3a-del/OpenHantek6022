@@ -12,6 +12,7 @@
 #include "hantekdso/controlspecification.h"
 #include "levelslider.h"
 #include "viewsettings.h"
+#include "xyrecorder.h"
 
 class SpectrumGenerator;
 struct DsoSettingsScope;
@@ -45,6 +46,9 @@ class DsoWidget : public QWidget {
 
     void switchToPrintColors();
     void restoreScreenColors();
+
+    /// \brief Access the XY recorder for export.
+    XYRecorder *xyRecorder() { return &m_xyRecorder; }
 
   protected:
     virtual void showEvent( QShowEvent *event ) override;
@@ -125,6 +129,8 @@ class DsoWidget : public QWidget {
     void showCursorMessage( QPoint globalPos = QPoint(), const QString &message = QString() );
     void updateItem( ChannelID index, bool switchOn = false );
 
+    XYRecorder m_xyRecorder; ///< Continuous XY recorder buffer
+
   public slots:
     // Horizontal axis
     // void horizontalFormatChanged(HorizontalFormat format);
@@ -158,6 +164,10 @@ class DsoWidget : public QWidget {
 
     // Scope control
     void updateSlidersSettings();
+
+    // XY Recorder
+    void updateXYContinuous( bool enabled );
+    void configureXYRecorder( XYRecorder::Config cfg );
 
   private slots:
     // Sliders

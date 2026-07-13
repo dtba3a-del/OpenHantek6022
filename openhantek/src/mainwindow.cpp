@@ -180,6 +180,22 @@ MainWindow::MainWindow( HantekDsoControl *dsoControl, DsoSettings *settings, Exp
 
     ui->menuExport->addSeparator();
 
+    // XY Recorder export - manual snapshot of what's currently in RAM.
+    // In TAPE + streaming mode that's only the current render window (tail);
+    // the full record is already at the file chosen when recording started.
+    action = new QAction( QIcon( iconPath + "exporter.svg" ), tr( "Export XY Data .." ), this );
+    action->setToolTip( tr( "Export the current XY recorder trajectory as CSV (no time column). "
+                            "If recording to a tape file, the full record is already there - "
+                            "this exports only the visible window." ) );
+    connect( action, &QAction::triggered, this, [ this ]() {
+        QString fileName = QFileDialog::getSaveFileName( this, tr( "Export XY Data" ), "", tr( "CSV (*.csv)" ) );
+        if ( !fileName.isEmpty() )
+            dsoWidget->xyRecorder()->exportCSV( fileName );
+    } );
+    ui->menuExport->addAction( action );
+
+    ui->menuExport->addSeparator();
+
     for ( auto *exporter : *exporterRegistry ) {
         action = new QAction( QIcon( iconPath + "exporter.svg" ), exporter->name(), this );
         action->setToolTip( tr( "Export captured data in %1 format for further processing" ).arg( exporter->format() ) );
@@ -307,6 +323,8 @@ MainWindow::MainWindow( HantekDsoControl *dsoControl, DsoSettings *settings, Exp
         ui->actionHistogram->setEnabled( format == Dso::GraphFormat::TY );
         spectrumDock->enableSpectrumDock( format == Dso::GraphFormat::TY );
     } );
+    connect( horizontalDock, &HorizontalDock::xyConfigureRequested, dsoWidget, &DsoWidget::configureXYRecorder );
+    connect( horizontalDock, &HorizontalDock::xyContinuousChanged, dsoWidget, &DsoWidget::updateXYContinuous );
 
     connect( triggerDock, &TriggerDock::modeChanged, dsoControl, &HantekDsoControl::setTriggerMode );
     connect( triggerDock, &TriggerDock::modeChanged, dsoWidget, &DsoWidget::updateTriggerMode );

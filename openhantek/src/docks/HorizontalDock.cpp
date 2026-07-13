@@ -6,8 +6,10 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDockWidget>
+#include <QFileDialog>
 #include <QLabel>
 #include <QSignalBlocker>
+#include <QSpinBox>
 #include <QThread>
 
 #include <cmath>
@@ -59,13 +61,70 @@ HorizontalDock::HorizontalDock( DsoSettingsScope *scope, const Dso::ControlSpeci
     for ( Dso::GraphFormat format : Dso::GraphFormatEnum )
         formatComboBox->addItem( Dso::graphFormatString( format ) );
 
+    // XY Continuous recorder checkbox
+    xyContinuousCheckBox = new QCheckBox( tr( "XY Recorder" ) );
+    if ( scope->toolTipVisible )
+        xyContinuousCheckBox->setToolTip( tr( "Continuous XY acquisition like a chart recorder. "
+                                               "Anti-aliased cascade decimation for a smooth curve. "
+                                               "No time axis — pure XY trajectory." ) );
+
+    // XY recorder configuration (analogous to trigger source + per-channel
+    // sensitivity: masterAxis picks which axis sizes the cascade, both slew
+    // rates are always independently editable)
+    masterAxisLabel = new QLabel( tr( "Master axis" ) );
+    masterAxisComboBox = new QComboBox();
+    masterAxisComboBox->addItem( tr( "X (CH1)" ) );
+    masterAxisComboBox->addItem( tr( "Y (CH2)" ) );
+    if ( scope->toolTipVisible )
+        masterAxisComboBox->setToolTip( tr( "Axis whose full-scale range and slew rate size the decimation "
+                                             "cascade (like choosing a trigger source, but for the recorder)" ) );
+
+    sheetModeLabel = new QLabel( tr( "Sheet mode" ) );
+    sheetModeComboBox = new QComboBox();
+    sheetModeComboBox->addItem( tr( "Finite sheet (fixed point count)" ) );
+    sheetModeComboBox->addItem( tr( "Tape (fixed density, streamed to disk)" ) );
+
+    slewRateXLabel = new QLabel( tr( "Expected X slew rate" ) );
+    slewRateXSiSpinBox = new SiSpinBox( UNIT_VOLTS );
+    slewRateXSiSpinBox->setUnitPostfix( tr( "/s" ) );
+    slewRateXSiSpinBox->setMinimum( 1e-4 );
+    slewRateXSiSpinBox->setMaximum( 1e7 );
+    slewRateXSiSpinBox->setValue( 1.0 );
+
+    slewRateYLabel = new QLabel( tr( "Expected Y slew rate" ) );
+    slewRateYSiSpinBox = new SiSpinBox( UNIT_VOLTS );
+    slewRateYSiSpinBox->setUnitPostfix( tr( "/s" ) );
+    slewRateYSiSpinBox->setMinimum( 1e-4 );
+    slewRateYSiSpinBox->setMaximum( 1e7 );
+    slewRateYSiSpinBox->setValue( 1.0 );
+
+    targetPointsLabel = new QLabel( tr( "Target points" ) );
+    targetPointsSpinBox = new QSpinBox();
+    targetPointsSpinBox->setRange( 10, 1000000 );
+    targetPointsSpinBox->setValue( 2000 );
+
+    targetDensityLabel = new QLabel( tr( "Target density (pts/s)" ) );
+    targetDensitySpinBox = new QSpinBox();
+    targetDensitySpinBox->setRange( 1, 1000000 );
+    targetDensitySpinBox->setValue( 2000 );
+
+    trackSigmaCheckBox = new QCheckBox( tr( "Track sigma (envelope width)" ) );
+    if ( scope->toolTipVisible )
+        trackSigmaCheckBox->setToolTip( tr( "Store the std-dev of the final cascade block with each point, "
+                                             "for drawing an uncertainty band" ) );
+
+    extractModeLabel = new QLabel( tr( "Extraction" ) );
+    extractModeComboBox = new QComboBox();
+    extractModeComboBox->addItem( tr( "Cascade mean" ) );
+    extractModeComboBox->addItem( tr( "Peak envelope (min/max)" ) );
+
     calfreqLabel = new QLabel( tr( "Calibration out" ) );
     calfreqSteps = spec->calfreqSteps;
     std::reverse( calfreqSteps.begin(), calfreqSteps.end() ); // put highest value on top of the list
     calfreqComboBox = new QComboBox();
     if ( scope->toolTipVisible )
         calfreqComboBox->setToolTip( tr( "Select the frequency of the calibration output, scroll for fast change" ) );
-    for ( double calfreqStep : qAsConst( calfreqSteps ) )
+    for ( double calfreqStep : std::as_const( calfreqSteps ) )
         calfreqComboBox->addItem( valueToString( calfreqStep, UNIT_HERTZ, calfreqStep < 10e3 ? 2 : 0 ) );
 
     dockLayout = new QGridLayout();
@@ -80,6 +139,24 @@ HorizontalDock::HorizontalDock( DsoSettingsScope *scope, const Dso::ControlSpeci
     dockLayout->addWidget( samplerateSiSpinBox, row++, 1 );
     dockLayout->addWidget( formatLabel, row, 0 );
     dockLayout->addWidget( formatComboBox, row++, 1 );
+    dockLayout->addWidget( xyContinuousCheckBox, row, 0, 1, 2 );
+    ++row;
+    dockLayout->addWidget( masterAxisLabel, row, 0 );
+    dockLayout->addWidget( masterAxisComboBox, row++, 1 );
+    dockLayout->addWidget( sheetModeLabel, row, 0 );
+    dockLayout->addWidget( sheetModeComboBox, row++, 1 );
+    dockLayout->addWidget( slewRateXLabel, row, 0 );
+    dockLayout->addWidget( slewRateXSiSpinBox, row++, 1 );
+    dockLayout->addWidget( slewRateYLabel, row, 0 );
+    dockLayout->addWidget( slewRateYSiSpinBox, row++, 1 );
+    dockLayout->addWidget( targetPointsLabel, row, 0 );
+    dockLayout->addWidget( targetPointsSpinBox, row++, 1 );
+    dockLayout->addWidget( targetDensityLabel, row, 0 );
+    dockLayout->addWidget( targetDensitySpinBox, row++, 1 );
+    dockLayout->addWidget( trackSigmaCheckBox, row, 0, 1, 2 );
+    ++row;
+    dockLayout->addWidget( extractModeLabel, row, 0 );
+    dockLayout->addWidget( extractModeComboBox, row++, 1 );
     dockLayout->addWidget( calfreqLabel, row, 0 );
     dockLayout->addWidget( calfreqComboBox, row++, 1 );
 
@@ -88,6 +165,7 @@ HorizontalDock::HorizontalDock( DsoSettingsScope *scope, const Dso::ControlSpeci
 
     // Load settings into GUI
     loadSettings( scope );
+    updateXYControlsVisibility();
 
     // Connect signals and slots
     connect( samplerateSiSpinBox, SELECT< double >::OVERLOAD_OF( &QDoubleSpinBox::valueChanged ), this,
@@ -98,6 +176,9 @@ HorizontalDock::HorizontalDock( DsoSettingsScope *scope, const Dso::ControlSpeci
              [ this ]( int index ) { this->formatSelected( index ); } );
     connect( calfreqComboBox, SELECT< int >::OVERLOAD_OF( &QComboBox::currentIndexChanged ), this,
              [ this ]( int index ) { this->calfreqIndexSelected( index ); } );
+    connect( xyContinuousCheckBox, &QCheckBox::toggled, this, &HorizontalDock::xyContinuousToggled );
+    connect( sheetModeComboBox, SELECT< int >::OVERLOAD_OF( &QComboBox::currentIndexChanged ), this,
+             [ this ]( int ) { this->updateXYControlsVisibility(); } );
 }
 
 
@@ -107,6 +188,9 @@ void HorizontalDock::loadSettings( DsoSettingsScope *scope ) {
     setTimebase( scope->horizontal.timebase );
     setFormat( scope->horizontal.format );
     setCalfreq( scope->horizontal.calfreq );
+    QSignalBlocker blocker( xyContinuousCheckBox );
+    xyContinuousCheckBox->setChecked( scope->horizontal.xyContinuous );
+    xyContinuousCheckBox->setEnabled( scope->horizontal.format == Dso::GraphFormat::XY );
 }
 
 
@@ -164,6 +248,8 @@ int HorizontalDock::setFormat( Dso::GraphFormat format ) {
     QSignalBlocker blocker( formatComboBox );
     if ( format >= Dso::GraphFormat::TY && format <= Dso::GraphFormat::XY ) {
         formatComboBox->setCurrentIndex( format );
+        xyContinuousCheckBox->setEnabled( format == Dso::GraphFormat::XY );
+        updateXYControlsVisibility();
         return format;
     }
     return -1;
@@ -277,6 +363,14 @@ void HorizontalDock::formatSelected( int index ) {
     if ( scope->verboseLevel > 2 )
         qDebug() << "  HDock::formatSelected()" << index;
     scope->horizontal.format = Dso::GraphFormat( index );
+    xyContinuousCheckBox->setEnabled( scope->horizontal.format == Dso::GraphFormat::XY );
+    // Leaving XY while the recorder is still checked would otherwise leave
+    // it "armed" with no way to fire updateXYContinuous(false) again ->
+    // stops mid-recording cleanup (label restore, finalize()/clear()) from
+    // ever running. Stop it explicitly instead.
+    if ( scope->horizontal.format != Dso::GraphFormat::XY && xyContinuousCheckBox->isChecked() )
+        xyContinuousCheckBox->setChecked( false ); // synchronously triggers xyContinuousToggled(false)
+    updateXYControlsVisibility();
     emit formatChanged( scope->horizontal.format );
 }
 
@@ -289,4 +383,83 @@ void HorizontalDock::calfreqIndexSelected( int index ) {
         qDebug() << "  HDock::calfreqIndex Selected()" << index << calfreq;
     scope->horizontal.calfreq = calfreq;
     emit calfreqChanged( calfreq );
+}
+
+
+XYRecorder::Config HorizontalDock::buildXYConfig() const {
+    XYRecorder::Config cfg;
+    cfg.masterAxis = masterAxisComboBox->currentIndex() == 0 ? XYRecorder::MasterAxis::X : XYRecorder::MasterAxis::Y;
+    cfg.sheetMode =
+        sheetModeComboBox->currentIndex() == 0 ? XYRecorder::SheetMode::FINITE : XYRecorder::SheetMode::TAPE;
+    cfg.slewRateX = slewRateXSiSpinBox->value();
+    cfg.slewRateY = slewRateYSiSpinBox->value();
+    cfg.targetPoints = std::size_t( targetPointsSpinBox->value() );
+    cfg.targetDensity = double( targetDensitySpinBox->value() );
+    cfg.trackSigma = trackSigmaCheckBox->isChecked();
+    cfg.extractMode = extractModeComboBox->currentIndex() == 0 ? XYRecorder::ExtractMode::CASCADE
+                                                                : XYRecorder::ExtractMode::PEAK_ENVELOPE;
+    return cfg;
+}
+
+
+void HorizontalDock::updateXYControlsVisibility() {
+    const bool xyMode = ( scope->horizontal.format == Dso::GraphFormat::XY );
+    const bool recording = xyContinuousCheckBox->isChecked();
+
+    masterAxisLabel->setVisible( xyMode );
+    masterAxisComboBox->setVisible( xyMode );
+    sheetModeLabel->setVisible( xyMode );
+    sheetModeComboBox->setVisible( xyMode );
+    slewRateXLabel->setVisible( xyMode );
+    slewRateXSiSpinBox->setVisible( xyMode );
+    slewRateYLabel->setVisible( xyMode );
+    slewRateYSiSpinBox->setVisible( xyMode );
+    trackSigmaCheckBox->setVisible( xyMode );
+    extractModeLabel->setVisible( xyMode );
+    extractModeComboBox->setVisible( xyMode );
+
+    const bool finite = sheetModeComboBox->currentIndex() == 0;
+    targetPointsLabel->setVisible( xyMode && finite );
+    targetPointsSpinBox->setVisible( xyMode && finite );
+    targetDensityLabel->setVisible( xyMode && !finite );
+    targetDensitySpinBox->setVisible( xyMode && !finite );
+
+    // configure() isn't safe mid-recording -> lock the inputs while armed
+    masterAxisComboBox->setEnabled( !recording );
+    sheetModeComboBox->setEnabled( !recording );
+    slewRateXSiSpinBox->setEnabled( !recording );
+    slewRateYSiSpinBox->setEnabled( !recording );
+    targetPointsSpinBox->setEnabled( !recording );
+    targetDensitySpinBox->setEnabled( !recording );
+    trackSigmaCheckBox->setEnabled( !recording );
+    extractModeComboBox->setEnabled( !recording );
+}
+
+
+/// \brief Called when XY Recorder checkbox is toggled.
+/// \param checked The new state.
+void HorizontalDock::xyContinuousToggled( bool checked ) {
+    if ( scope->verboseLevel > 2 )
+        qDebug() << "  HDock::xyContinuousToggled()" << checked;
+
+    if ( checked ) {
+        XYRecorder::Config cfg = buildXYConfig();
+        if ( cfg.sheetMode == XYRecorder::SheetMode::TAPE ) {
+            const QString path = QFileDialog::getSaveFileName( this, tr( "XY tape recording target" ),
+                                                                 lastTapeFilePath, tr( "CSV files (*.csv)" ) );
+            if ( path.isEmpty() ) {
+                // User cancelled -> abort the start, leave everything as it was
+                QSignalBlocker blocker( xyContinuousCheckBox );
+                xyContinuousCheckBox->setChecked( false );
+                return;
+            }
+            lastTapeFilePath = path;
+            cfg.tapeFilePath = path;
+        }
+        emit xyConfigureRequested( cfg ); // must reach DsoWidget before the next addFrame()
+    }
+
+    scope->horizontal.xyContinuous = checked;
+    updateXYControlsVisibility();
+    emit xyContinuousChanged( checked );
 }

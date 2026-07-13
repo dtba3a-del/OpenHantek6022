@@ -9,10 +9,12 @@
 
 #include "hantekdso/controlspecification.h"
 #include "hantekdso/enums.h"
+#include "xyrecorder.h"
 
 class QLabel;
 class QCheckBox;
 class QComboBox;
+class QSpinBox;
 
 class SiSpinBox;
 
@@ -53,7 +55,7 @@ class HorizontalDock : public QDockWidget {
     void setSamplerateLimits( double minimum, double maximum );
     /// \brief Updates the mode and steps of the samplerate spin box.
     /// \param steps The steps value the spin box should accept.
-    void setSamplerateSteps( int mode, QList< double > sampleSteps );
+    void setSamplerateSteps( int mode, const QList< double > steps );
     void calculateSamplerateSteps( double timebase );
     /// \brief Changes the calibration frequency.
     /// \param calfreq The calibration frequency in hertz.
@@ -73,11 +75,32 @@ class HorizontalDock : public QDockWidget {
     QLabel *timebaseLabel;          ///< The label for the timebase spinbox
     QLabel *formatLabel;            ///< The label for the format combobox
     QLabel *calfreqLabel;           ///< The label for the calibration frequency spinbox
+    QCheckBox *xyContinuousCheckBox; ///< Enable continuous XY recorder mode
     SiSpinBox *samplerateSiSpinBox; ///< Selects the samplerate for acquisitions
     SiSpinBox *timebaseSiSpinBox;   ///< Selects the timebase for voltage graphs
     QComboBox *formatComboBox;      ///< Selects the way the sampled data is
                                     ///  interpreted and shown
     QComboBox *calfreqComboBox;     ///< Selects the calibration frequency
+
+    // XY recorder configuration (visible only in XY format, like a
+    // trigger-source/sensitivity pair: master axis picks which axis sizes
+    // the cascade, both slew rates are always independently editable)
+    QLabel *masterAxisLabel;
+    QComboBox *masterAxisComboBox;
+    QLabel *sheetModeLabel;
+    QComboBox *sheetModeComboBox;
+    QLabel *slewRateXLabel;
+    SiSpinBox *slewRateXSiSpinBox;
+    QLabel *slewRateYLabel;
+    SiSpinBox *slewRateYSiSpinBox;
+    QLabel *targetPointsLabel;
+    QSpinBox *targetPointsSpinBox;
+    QLabel *targetDensityLabel;
+    QSpinBox *targetDensitySpinBox;
+    QCheckBox *trackSigmaCheckBox;
+    QLabel *extractModeLabel;
+    QComboBox *extractModeComboBox;
+    QString lastTapeFilePath;
 
     DsoSettingsScope *scope;         ///< The settings provided by the parent class
     QList< double > timebaseSteps;   ///< Steps for the timebase spinbox
@@ -86,11 +109,15 @@ class HorizontalDock : public QDockWidget {
 
     QStringList formatStrings; ///< Strings for the formats
 
+    void updateXYControlsVisibility();
+    XYRecorder::Config buildXYConfig() const;
+
   protected slots:
     void samplerateSelected( double samplerate );
     void timebaseSelected( double timebase );
     void formatSelected( int index );
     void calfreqIndexSelected( int index );
+    void xyContinuousToggled( bool checked );
 
   private:
     double samplerateRequest = 0;
@@ -101,4 +128,6 @@ class HorizontalDock : public QDockWidget {
     void recordLengthChanged( int recordLength );  ///< The recordd length has been changed
     void formatChanged( Dso::GraphFormat format ); ///< The viewing format has been changed
     void calfreqChanged( double calfreq );         ///< The timebase has been changed
+    void xyContinuousChanged( bool enabled );      ///< Continuous XY recorder mode toggled
+    void xyConfigureRequested( XYRecorder::Config cfg ); ///< Emitted right before xyContinuousChanged(true) - must be handled synchronously by DsoWidget before the next addFrame()
 };

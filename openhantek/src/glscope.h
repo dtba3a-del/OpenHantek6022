@@ -13,12 +13,12 @@
 #include <QtGlobal>
 
 #include "glscopegraph.h"
-#include "hantekdso/enums.h"
 #include "hantekprotocol/types.h"
 
 struct DsoSettingsView;
 struct DsoSettingsScope;
 struct DsoSettingsScopeCursor;
+class XYRecorder;
 class PPresult;
 
 #define GLES100 "1.00 ES"
@@ -40,6 +40,7 @@ class GlScope : public QOpenGLWidget {
      * Show new post processed data
      * @param data
      */
+    void updateXY( const XYRecorder *recorder );
     void showData( std::shared_ptr< PPresult > newData );
     void selectCursor( int index );
     void updateCursor( int index = 0 );
@@ -123,6 +124,11 @@ class GlScope : public QOpenGLWidget {
 
     // Graphs
     std::list< Graph > m_GraphHistory;
+
+    // XY Recorder rendering
+    QOpenGLBuffer m_xyBuffer;
+    QOpenGLVertexArrayObject m_vaoXY;
+    int xyPointCount = 0;
     unsigned currentGraphInHistory = 0;
 
     // OpenGL shader, matrix, var-locations

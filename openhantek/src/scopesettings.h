@@ -37,6 +37,7 @@ struct DsoSettingsScopeHorizontal {
     double samplerate = 1e6; ///< The samplerate of the oscilloscope in S
     int dotsOnScreen = 0;
     double calfreq = 1e3; ///< The frequency of the calibration output
+    bool xyContinuous = false; ///< Continuous XY chart-recorder mode enabled
 };
 
 /// \brief Holds the settings for the trigger.

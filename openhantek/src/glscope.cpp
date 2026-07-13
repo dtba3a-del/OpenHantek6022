@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <cmath>
-#include <iostream>
 
 #include <QColor>
 #include <QCoreApplication>
@@ -17,6 +16,7 @@
 #include <QOpenGLFunctions>
 
 #include "glscope.h"
+#include "xyrecorder.h"
 
 #include "post/graphgenerator.h"
 #include "post/ppresult.h"
@@ -38,7 +38,6 @@ QString GlScope::getOpenGLversion() {
         context.create();
         context.makeCurrent( &surface );
         OpenGLversion = reinterpret_cast< const char * >( context.functions()->glGetString( GL_VERSION ) );
-        // qDebug() << OpenGLversion;
         surface.destroy();
     }
     return OpenGLversion;
@@ -47,17 +46,14 @@ QString GlScope::getOpenGLversion() {
 
 // this static function will be called early from main to set up OpenGL
 void GlScope::useOpenGLSLversion( QString renderer ) {
-    // QCoreApplication::setAttribute( Qt::AA_ShareOpenGLContexts, true ); // commented out because too late
     QSurfaceFormat format;
     GLSLversion = renderer;
-    format.setSamples( 4 ); // ignore antialiasing warning with some HW, Qt & OpenGL versions.
+    format.setSamples( 4 );
     format.setProfile( QSurfaceFormat::CoreProfile );
     if ( renderer == GLES100 ) {
         format.setRenderableType( QSurfaceFormat::OpenGLES );
-        // QCoreApplication::setAttribute( Qt::AA_UseOpenGLES, true ); // commented out because too late
     } else {
         format.setRenderableType( QSurfaceFormat::OpenGL );
-        // QCoreApplication::setAttribute( Qt::AA_UseOpenGLES, false ); // commented out because too late
     }
     QSurfaceFormat::setDefaultFormat( format );
 }
@@ -80,7 +76,7 @@ GlScope::GlScope( DsoSettingsScope *scope, DsoSettingsView *view, QWidget *paren
 }
 
 
-GlScope::~GlScope() { // virtual destructor necessary
+GlScope::~GlScope() {
     if ( scope->verboseLevel > 1 )
         qDebug() << " GLScope::~GLScope()";
 }
@@ -103,12 +99,12 @@ GlScope *GlScope::createZoomed( DsoSettingsScope *scope, DsoSettingsView *view, 
 
 
 void GlScope::setVisible( bool visible ) {
-    if ( !visible && rightMouseInside ) { // clean up the display
+    if ( !visible && rightMouseInside ) {
         QGuiApplication::restoreOverrideCursor();
         emit cursorMeasurement();
     }
     rightMouseInside = false;
-    QWidget::setVisible( visible ); // ... and call the base class method
+    QWidget::setVisible( visible );
 }
 
 
@@ -129,14 +125,14 @@ QPointF GlScope::posToScopePos( QPointF pos ) {
 
 void GlScope::rightMouseEvent( QMouseEvent *event ) {
     if ( rect().contains( event->pos() ) ) {
-        if ( !rightMouseInside ) {                                            // enter scope frame
-            QGuiApplication::setOverrideCursor( QCursor( Qt::CrossCursor ) ); // switch to measure cursor
+        if ( !rightMouseInside ) {
+            QGuiApplication::setOverrideCursor( QCursor( Qt::CrossCursor ) );
         }
         rightMouseInside = true;
         emit cursorMeasurement( posToScopePos( event->pos() ), event->globalPos(), true );
     } else {
-        if ( rightMouseInside ) {                     // leave scope frame
-            QGuiApplication::restoreOverrideCursor(); // back to normal cursor
+        if ( rightMouseInside ) {
+            QGuiApplication::restoreOverrideCursor();
         }
         rightMouseInside = false;
         emit cursorMeasurement();
@@ -151,7 +147,6 @@ void GlScope::mousePressEvent( QMouseEvent *event ) {
     if ( !( zoomed && selectedCursor == 0 ) && event->button() == Qt::LeftButton ) {
         selectedMarker = NO_MARKER;
         DsoSettingsScopeCursor *cursor = cursorInfo[ size_t( selectedCursor ) ];
-        // Capture nearest marker located within snap area (+/- 1% of full scale).
         double dX0 = fabs( cursor->pos[ 0 ].x() - position.x() );
         double dX1 = fabs( cursor->pos[ 1 ].x() - position.x() );
         double dY0 = fabs( cursor->pos[ 0 ].y() - position.y() );
@@ -160,7 +155,6 @@ void GlScope::mousePressEvent( QMouseEvent *event ) {
         switch ( cursor->shape ) {
         case DsoSettingsScopeCursor::RECTANGULAR:
             if ( std::min( dX0, dX1 ) < 1.0 / DIVS_SUB && std::min( dY0, dY1 ) < 1.0 / DIVS_SUB ) {
-                // Do we need to swap Y-coords?
                 if ( ( dX0 < dX1 && dY0 > dY1 ) || ( dX0 > dX1 && dY0 < dY1 ) ) {
                     std::swap( cursor->pos[ 0 ].ry(), cursor->pos[ 1 ].ry() );
                 }
@@ -205,9 +199,6 @@ void GlScope::mouseMoveEvent( QMouseEvent *event ) {
         qDebug() << "   GLS::mME()" << event << position;
     if ( !( zoomed && selectedCursor == 0 ) && ( event->buttons() & Qt::LeftButton ) != 0 ) {
         if ( selectedMarker == NO_MARKER ) {
-            // qDebug() << "mouseMoveEvent";
-            // User started dragging outside the snap area of any marker:
-            // move all markers to current position and select last marker in the array.
             for ( int marker = 0; marker < 2; ++marker ) {
                 cursorInfo[ size_t( selectedCursor ) ]->pos[ marker ] = position;
                 emit markerMoved( selectedCursor, marker );
@@ -229,7 +220,6 @@ void GlScope::mouseReleaseEvent( QMouseEvent *event ) {
     if ( !( zoomed && selectedCursor == 0 ) && event->button() == Qt::LeftButton ) {
         QPointF position = posToScopePos( event->pos() );
         if ( selectedMarker < 2 ) {
-            // qDebug() << "mouseReleaseEvent";
             cursorInfo[ size_t( selectedCursor ) ]->pos[ selectedMarker ] = position;
             emit markerMoved( selectedCursor, selectedMarker );
         }
@@ -248,26 +238,20 @@ void GlScope::mouseDoubleClickEvent( QMouseEvent *event ) {
     if ( scope->verboseLevel > 3 )
         qDebug() << "   GLS::mDCE()" << event;
     if ( !( zoomed && selectedCursor == 0 ) && ( event->buttons() & Qt::LeftButton ) != 0 ) {
-        // left double click positions two markers left and right of clicked pos with zoom=100
         QPointF position = posToScopePos( event->pos() );
         if ( selectedMarker == NO_MARKER ) {
-            // User double clicked outside the snap area of any marker
-            QPointF p = QPointF( 0.5, 0 );       // 10x zoom
-            if ( event->modifiers() & Qt::CTRL ) // 100x zoom
+            QPointF p = QPointF( 0.5, 0 );
+            if ( event->modifiers() & Qt::CTRL )
                 p /= 10;
-            if ( event->modifiers() & Qt::SHIFT ) // center at trigger position
+            if ( event->modifiers() & Qt::SHIFT )
                 position = QPointF( 10 * scope->trigger.position - 5, 0 );
-            // move 1st marker left of current position.
             cursorInfo[ size_t( selectedCursor ) ]->pos[ 0 ] = position - p;
             emit markerMoved( selectedCursor, 0 );
-            // move 2nd marker right of current position to make zoom=10 or 100.
             cursorInfo[ size_t( selectedCursor ) ]->pos[ 1 ] = position + p;
             emit markerMoved( selectedCursor, 1 );
-            //  select no marker
             selectedMarker = NO_MARKER;
         }
     } else if ( !( zoomed && selectedCursor == 0 ) && ( event->buttons() & Qt::RightButton ) != 0 ) {
-        // right double click moves all markers out of the way
         cursorInfo[ size_t( selectedCursor ) ]->pos[ 0 ] = QPointF( MARGIN_LEFT, 0 );
         cursorInfo[ size_t( selectedCursor ) ]->pos[ 1 ] = QPointF( MARGIN_RIGHT, 0 );
         emit markerMoved( selectedCursor, 0 );
@@ -280,35 +264,34 @@ void GlScope::mouseDoubleClickEvent( QMouseEvent *event ) {
 void GlScope::wheelEvent( QWheelEvent *event ) {
     if ( scope->verboseLevel > 3 )
         qDebug() << "   GLS::wE()" << event;
-    // qDebug() << "wheeelEvent" << zoomed << selectedCursor << event->globalPosition();
     if ( selectedMarker == NO_MARKER ) {
-        double step = event->angleDelta().y() / 1200.0; // one click = 0.1
+        double step = event->angleDelta().y() / 1200.0;
         double &m1 = cursorInfo[ size_t( selectedCursor ) ]->pos[ 0 ].rx();
         double &m2 = cursorInfo[ size_t( selectedCursor ) ]->pos[ 1 ].rx();
         if ( m1 > m2 )
             std::swap( m1, m2 );
         double dm = m2 - m1;
-        if ( event->modifiers() & Qt::CTRL ) {                           // zoom in (step > 0) / out (step < 0)
-            if ( ( step > 0 && dm <= 1 ) || ( step < 0 && dm <= 0.99 ) ) // smaller steps when zoom >= 10x
+        if ( event->modifiers() & Qt::CTRL ) {
+            if ( ( step > 0 && dm <= 1 ) || ( step < 0 && dm <= 0.99 ) )
                 step *= 0.1;
-            if ( step < 0 || dm >= 5 * step ) { // step in and new zomm will be < 250x
+            if ( step < 0 || dm >= 5 * step ) {
                 m1 += step;
                 m2 -= step;
-            } else { // set highest zoom  -> 500x fix
+            } else {
                 double mm = ( m1 + m2 ) / 2;
                 m1 = mm - 0.01;
                 m2 = mm + 0.01;
             }
-        } else {                                        // move zoom window left/right (100 steps on original)
-            if ( step < 0 )                             // shift zoom range left ..
-                step = qMax( step, MARGIN_LEFT - m1 );  // .. until m1 == MARGIN_LEFT
-            else                                        // shift zoom range right ..
-                step = qMin( step, MARGIN_RIGHT - m2 ); // .. until m2 == MARGIN_RIGHT
-            if ( event->modifiers() & Qt::SHIFT ) {     // shift -> smaller steps
-                if ( m2 - m1 < .1 )                     // zoom > 100 ?
-                    step *= ( m2 - m1 );                // .. keep 10 steps per zoomed window
-                else                                    // otherwise
-                    step *= 0.1;                        // .. 1000 steps on original window
+        } else {
+            if ( step < 0 )
+                step = qMax( step, MARGIN_LEFT - m1 );
+            else
+                step = qMin( step, MARGIN_RIGHT - m2 );
+            if ( event->modifiers() & Qt::SHIFT ) {
+                if ( m2 - m1 < .1 )
+                    step *= ( m2 - m1 );
+                else
+                    step *= 0.1;
             }
             m1 += step;
             m2 += step;
@@ -325,7 +308,7 @@ void GlScope::wheelEvent( QWheelEvent *event ) {
 void GlScope::paintEvent( QPaintEvent *event ) {
     if ( shaderCompileSuccess ) {
         QOpenGLWidget::paintEvent( event );
-    } else if ( !zoomed ) { // draw error message on normal view if OpenGL failed
+    } else if ( !zoomed ) {
         QPainter painter( this );
         painter.setRenderHint( QPainter::Antialiasing, true );
         QFont font = painter.font();
@@ -334,7 +317,7 @@ void GlScope::paintEvent( QPaintEvent *event ) {
         painter.drawText( rect(), Qt::AlignCenter | Qt::TextWordWrap, errorMessage );
         fprintf( stderr, "%s", errorMessage.toUtf8().data() );
     }
-    event->accept(); // consume the event
+    event->accept();
 }
 
 
@@ -404,30 +387,29 @@ void GlScope::initializeGL() {
           void main() { flatColor = color; }
     )";
 
-    // Compile vertex and fragment shader
     QString GLEShint;
-    if ( GLES100 != GLSLversion )                                 // regular OpenGL
-        GLEShint = tr( "Try command line option '--useGLES'\n" ); // offer OpenGL ES as fall back solution
+    if ( GLES100 != GLSLversion )
+        GLEShint = tr( "Try command line option '--useGLES'\n" );
     QString OpenGLinfo = "Graphic: " + OpenGLversion;
     renderInfo = OpenGLinfo + " - GLSL version " + GLSLversion;
     if ( !zoomed )
         qDebug() << renderInfo.toLocal8Bit().data();
-    if ( GLSL150 == GLSLversion ) { // use version 150 if supported by OpenGL version >= 3.2
+    if ( GLSL150 == GLSLversion ) {
         if ( !program->addShaderFromSourceCode( QOpenGLShader::Vertex, vertexShaderGLSL150 ) ||
              !program->addShaderFromSourceCode( QOpenGLShader::Fragment, fragmentShaderGLSL150 ) ) {
             qWarning() << "Switching to GLSL version 1.20, use the command line option '--useGLSL120' or '--useGLES'";
-            GLSLversion = GLSL120; // in case of error try version 120 as fall back
+            GLSLversion = GLSL120;
         }
     }
-    if ( GLSL120 == GLSLversion ) { // this version is supported by OpenGL version >= 2.1 (older HW/SW)
+    if ( GLSL120 == GLSLversion ) {
         if ( !program->addShaderFromSourceCode( QOpenGLShader::Vertex, vertexShaderGLSL120 ) ||
              !program->addShaderFromSourceCode( QOpenGLShader::Fragment, fragmentShaderGLSL120 ) ) {
             errorMessage =
                 tr( "Failed to compile OpenGL shader programs.\n" ) + GLEShint + OpenGLinfo + QString( "\n" ) + program->log();
-            return; // in case of error propose the use of OpenGLES (OpenGL for embedded systems) and stop
+            return;
         }
     }
-    if ( GLES100 == GLSLversion ) { // use OpenGLES
+    if ( GLES100 == GLSLversion ) {
         if ( !program->addShaderFromSourceCode( QOpenGLShader::Vertex, vertexShaderGL100ES ) ||
              !program->addShaderFromSourceCode( QOpenGLShader::Fragment, fragmentShaderGL100ES ) ) {
             errorMessage = tr( "Failed to compile OpenGL shader programs.\n" ) + OpenGLinfo + QString( "\n" ) + program->log();
@@ -435,7 +417,6 @@ void GlScope::initializeGL() {
         }
     }
 
-    // Link shader pipeline
     if ( !program->link() || !program->bind() ) {
         errorMessage =
             tr( "Failed to link/bind OpenGL shader programs.\n" ) + GLEShint + renderInfo + QString( "\n" ) + program->log();
@@ -456,10 +437,7 @@ void GlScope::initializeGL() {
     auto *gl = context()->functions();
     gl->glDisable( GL_DEPTH_TEST );
     gl->glEnable( GL_BLEND );
-    // Enable depth buffer
     gl->glEnable( GL_DEPTH_TEST );
-
-    // Enable back face culling
     gl->glEnable( GL_CULL_FACE );
     gl->glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 
@@ -479,7 +457,7 @@ void GlScope::initializeGL() {
 
     m_program = std::move( program );
 
-    generateGrid(); // initialize the grid draw structures
+    generateGrid();
 
     shaderCompileSuccess = true;
 }
@@ -489,24 +467,83 @@ void GlScope::showData( std::shared_ptr< PPresult > newData ) {
     if ( !shaderCompileSuccess )
         return;
     makeCurrent();
-    // Remove too much entries
     while ( view->digitalPhosphorDraws() < m_GraphHistory.size() )
         m_GraphHistory.pop_back();
 
-    // Add if missing
     if ( view->digitalPhosphorDraws() > m_GraphHistory.size() ) {
         m_GraphHistory.resize( m_GraphHistory.size() + 1 );
     }
 
-    // Move last item to front
     m_GraphHistory.splice( m_GraphHistory.begin(), m_GraphHistory, std::prev( m_GraphHistory.end() ) );
 
-    // Add new entry
     m_GraphHistory.front().writeData( newData.get(), m_program.get(), vertexLocation );
-    // doneCurrent();
 
     update();
 }
+
+
+// ============================================================
+// XY RECORDER RENDERING
+// ============================================================
+void GlScope::updateXY( const XYRecorder *recorder ) {
+    if ( !recorder || !shaderCompileSuccess )
+        return;
+    if ( recorder->empty() ) {
+        xyPointCount = 0;
+        update();
+        return;
+    }
+
+    makeCurrent();
+
+    const auto &traj = recorder->trajectory();
+
+    if ( !m_vaoXY.isCreated() ) {
+        m_vaoXY.create();
+        m_xyBuffer.create();
+    }
+
+    QOpenGLVertexArrayObject::Binder b( &m_vaoXY );
+    m_xyBuffer.bind();
+    m_xyBuffer.setUsagePattern( QOpenGLBuffer::DynamicDraw );
+
+    std::vector< QVector3D > vertices;
+    vertices.reserve( traj.size() );
+
+    // Convert voltage values to scope div coordinates
+    double gainX = 1.0;
+    double gainY = 1.0;
+    double offsetX = 0.0;
+    double offsetY = 0.0;
+    if ( scope->voltage.size() > 0 ) {
+        gainX = scope->gain( 0 );
+        offsetX = scope->voltage[ 0 ].offset;
+    }
+    if ( scope->voltage.size() > 1 ) {
+        gainY = scope->gain( 1 );
+        offsetY = scope->voltage[ 1 ].offset;
+    }
+
+    for ( const auto &p : traj ) {
+        float xDiv = float( p.x / gainX + offsetX );
+        float yDiv = float( p.y / gainY + offsetY );
+        vertices.emplace_back( QVector3D( xDiv, yDiv, 0.0f ) );
+    }
+
+    m_xyBuffer.allocate( vertices.data(), int( vertices.size() * sizeof( QVector3D ) ) );
+
+    auto *prog = m_program.get();
+    prog->enableAttributeArray( vertexLocation );
+    prog->setAttributeBuffer( vertexLocation, GL_FLOAT, 0, 3, 0 );
+
+    xyPointCount = int( traj.size() );
+    b.release(); // must unbind before doneCurrent() - the Binder's destructor
+                 // would otherwise call glBindVertexArray() with no current
+                 // GL context (UB) when it goes out of scope below
+    doneCurrent();
+    update();
+}
+// ============================================================
 
 
 void GlScope::generateVertices( int marker, const DsoSettingsScopeCursor &cursor ) {
@@ -559,7 +596,6 @@ void GlScope::updateCursor( int index ) {
         for ( index = 0; index < int( cursorInfo.size() ); ++index ) {
             generateVertices( index, *cursorInfo[ size_t( index ) ] );
         }
-    // Write coordinates to GPU
     makeCurrent();
     m_marker.bind();
     m_marker.write( 0, vaMarker.data(), int( vaMarker.size() * sizeof( Vertices ) ) );
@@ -575,14 +611,11 @@ void GlScope::paintGL() {
     QColor bg = view->colors->background;
     gl->glClearColor( GLfloat( bg.redF() ), GLfloat( bg.greenF() ), GLfloat( bg.blueF() ), GLfloat( bg.alphaF() ) );
 
-    // Clear OpenGL buffer and configure settings
-    // TODO Don't clear if view->digitalPhosphorDraws()>1
     gl->glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
     gl->glLineWidth( 1 );
 
     m_program->bind();
 
-    // Apply zoom settings via matrix transformation
     if ( zoomed ) {
         QMatrix4x4 m;
         m.scale( QVector3D( GLfloat( DIVS_TIME ) / GLfloat( fabs( scope->getMarker( 1 ) - scope->getMarker( 0 ) ) ), 1.0f, 1.0f ) );
@@ -592,18 +625,45 @@ void GlScope::paintGL() {
 
     drawMarkers();
 
-    unsigned historyIndex = 0;
-    for ( Graph &graph : m_GraphHistory ) {
-        for ( ChannelID channel = 0; channel < scope->voltage.size(); ++channel ) {
-            if ( scope->horizontal.format == Dso::GraphFormat::TY ) {
-                drawSpectrumChannelGraph( channel, graph, int( historyIndex ) );
-                if ( scope->histogram ) {
-                    drawHistogramChannelGraph( channel, graph, int( historyIndex ) );
-                }
-            }
-            drawVoltageChannelGraph( channel, graph, int( historyIndex ) );
+    // ============================================================
+    // XY RECORDER MODE: draw continuous trajectory
+    // ============================================================
+    if ( scope->horizontal.format == Dso::GraphFormat::XY && scope->horizontal.xyContinuous && xyPointCount > 1 ) {
+        // Draw trajectory line
+        m_program->setUniformValue( colorLocation, view->colors->voltage[ 0 ] );
+        m_vaoXY.bind();
+        gl->glLineWidth( 2 );
+        gl->glDrawArrays( GL_LINE_STRIP, 0, xyPointCount );
+        m_vaoXY.release();
+
+        // Draw current point (head of trajectory) brighter - color only;
+        // this shader hardcodes gl_PointSize=1.0 (see vertex shader source
+        // above), there is no CPU-side point-size control - QOpenGLFunctions
+        // has no glPointSize(), that's desktop-GL compatibility profile only
+        if ( xyPointCount > 0 ) {
+            m_program->setUniformValue( colorLocation, view->colors->voltage[ 1 ] );
+            m_vaoXY.bind();
+            gl->glDrawArrays( GL_POINTS, xyPointCount - 1, 1 );
+            m_vaoXY.release();
         }
-        ++historyIndex;
+    }
+    // ============================================================
+    // STANDARD OSCILLOSCOPE MODE
+    // ============================================================
+    else {
+        unsigned historyIndex = 0;
+        for ( Graph &graph : m_GraphHistory ) {
+            for ( ChannelID channel = 0; channel < scope->voltage.size(); ++channel ) {
+                if ( scope->horizontal.format == Dso::GraphFormat::TY ) {
+                    drawSpectrumChannelGraph( channel, graph, int( historyIndex ) );
+                    if ( scope->histogram ) {
+                        drawHistogramChannelGraph( channel, graph, int( historyIndex ) );
+                    }
+                }
+                drawVoltageChannelGraph( channel, graph, int( historyIndex ) );
+            }
+            ++historyIndex;
+        }
     }
 
     if ( zoomed ) {
@@ -621,7 +681,6 @@ void GlScope::resizeGL( int width, int height ) {
     auto *gl = context()->functions();
     gl->glViewport( 0, 0, GLint( width ), GLint( height ) );
 
-    // Set axes to div-scale and apply correction for exact pixelization
     float pixelizationWidthCorrection = float( width ) / float( width - 1 );
     float pixelizationHeightCorrection = float( height ) / float( height - 1 );
 
@@ -637,10 +696,8 @@ void GlScope::resizeGL( int width, int height ) {
 }
 
 
-// draw 4 small crosses @ (x,y), (-x,y), (x,-y) and (-x,-y)
-// section 0:grid, 1:axes, 2:border
 void GlScope::draw4Cross( std::vector< QVector3D > &va, int section, float x, float y ) {
-    const float d = 0.05f; // cross size
+    const float d = 0.05f;
     for ( float xSign : { -1.0f, 1.0f } ) {
         for ( float ySign : { -1.0f, 1.0f } ) {
             gridDrawCounts[ section ] += 4;
@@ -653,12 +710,7 @@ void GlScope::draw4Cross( std::vector< QVector3D > &va, int section, float x, fl
 }
 
 
-// prepare the static grid structure that is shown by 'drawGrid()'
-// show a line as long as the trigger level marker is clicked or moved
-// index: channel, value: trigger level, pressed: marker is activated
 void GlScope::generateGrid( int index, double value, bool pressed ) {
-    // printf( "prepareGrid( %d, %g, %d )\n", index, value, pressed );
-
     QOpenGLShaderProgram *program = m_program.get();
     if ( program == nullptr )
         return;
@@ -675,7 +727,7 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
 
     int item = 0;
 
-    { // Bind draw vertical lines
+    {
         if ( !m_vaoGrid[ item ].isCreated() )
             m_vaoGrid[ item ].create();
         QOpenGLVertexArrayObject::Binder b( &m_vaoGrid[ item ] );
@@ -684,7 +736,6 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
         program->setAttributeBuffer( vertexLocation, GL_FLOAT, 0, 3, 0 );
     }
 
-    // Draw vertical dot lines
     for ( int vDiv = 1; vDiv < DIVS_TIME / 2; ++vDiv ) {
         for ( int dot = 1; dot < DIVS_VOLTAGE / 2 * DIVS_SUB; ++dot ) {
             float dotPosition = float( dot ) / DIVS_SUB;
@@ -695,11 +746,10 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
             vaGrid.push_back( QVector3D( float( vDiv ), dotPosition, 0 ) );
         }
     }
-    // Draw horizontal dot lines
     for ( int hDiv = 1; hDiv < DIVS_VOLTAGE / 2; ++hDiv ) {
         for ( int dot = 1; dot < DIVS_TIME / 2 * DIVS_SUB; ++dot ) {
             if ( dot % DIVS_SUB == 0 )
-                continue; // Already done by vertical lines
+                continue;
             float dotPosition = float( dot ) / DIVS_SUB;
             gridDrawCounts[ item ] += 4;
             vaGrid.push_back( QVector3D( -dotPosition, -float( hDiv ), 0 ) );
@@ -711,25 +761,21 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
 
     ++item;
 
-    { // Bind draw axes
+    {
         if ( !m_vaoGrid[ item ].isCreated() )
             m_vaoGrid[ item ].create();
         QOpenGLVertexArrayObject::Binder b( &m_vaoGrid[ item ] );
         m_grid.bind();
         program->enableAttributeArray( vertexLocation );
-        program->setAttributeBuffer( vertexLocation, GL_FLOAT, int( vaGrid.size() * sizeof( QVector3D ) ), 3 );
+        program->setAttributeBuffer( vertexLocation, GL_FLOAT, int( vaGrid.size() * sizeof( QVector3D ) ), 3, 0 );
     }
 
-    // Axes
-    // Horizontal axis
     gridDrawCounts[ item ] += 2;
     vaGrid.push_back( QVector3D( -DIVS_TIME / 2, 0, 0 ) );
     vaGrid.push_back( QVector3D( DIVS_TIME / 2, 0, 0 ) );
-    // Vertical axis
     gridDrawCounts[ item ] += 2;
     vaGrid.push_back( QVector3D( 0, -DIVS_VOLTAGE / 2, 0 ) );
     vaGrid.push_back( QVector3D( 0, DIVS_VOLTAGE / 2, 0 ) );
-    // Subdiv lines on horizontal axis
     for ( int line = 1; line < DIVS_TIME / 2 * DIVS_SUB; ++line ) {
         float linePosition = float( line ) / DIVS_SUB;
         gridDrawCounts[ item ] += 4;
@@ -738,7 +784,6 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
         vaGrid.push_back( QVector3D( -linePosition, -0.05f, 0 ) );
         vaGrid.push_back( QVector3D( -linePosition, 0.05f, 0 ) );
     }
-    // Subdiv lines on vertical axis
     for ( int line = 1; line < DIVS_VOLTAGE / 2 * DIVS_SUB; ++line ) {
         float linePosition = float( line ) / DIVS_SUB;
         gridDrawCounts[ item ] += 4;
@@ -748,30 +793,28 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
         vaGrid.push_back( QVector3D( 0.05f, -linePosition, 0 ) );
     }
 
-    // Draw vertical cross lines
     for ( int vDiv = 1; vDiv < DIVS_TIME / 2; ++vDiv ) {
         for ( int hDiv = 1; hDiv < DIVS_VOLTAGE / 2; ++hDiv ) {
             draw4Cross( vaGrid, 1, float( vDiv ), float( hDiv ) );
         }
     }
-    // Draw horizontal cross lines
     for ( int hDiv = 1; hDiv < DIVS_VOLTAGE / 2; ++hDiv ) {
         for ( int vDiv = 1; vDiv < DIVS_TIME / 2; ++vDiv ) {
             if ( vDiv % DIVS_SUB == 0 )
-                continue; // Already done by vertical lines
+                continue;
             draw4Cross( vaGrid, 1, float( vDiv ), float( hDiv ) );
         }
     }
 
     ++item;
 
-    { // Border
+    {
         if ( !m_vaoGrid[ item ].isCreated() )
             m_vaoGrid[ item ].create();
         QOpenGLVertexArrayObject::Binder b( &m_vaoGrid[ item ] );
         m_grid.bind();
         program->enableAttributeArray( vertexLocation );
-        program->setAttributeBuffer( vertexLocation, GL_FLOAT, int( vaGrid.size() * sizeof( QVector3D ) ), 3 );
+        program->setAttributeBuffer( vertexLocation, GL_FLOAT, int( vaGrid.size() * sizeof( QVector3D ) ), 3, 0 );
     }
     gridDrawCounts[ item ] += 4;
     vaGrid.push_back( QVector3D( -DIVS_TIME / 2, -DIVS_VOLTAGE / 2, 0 ) );
@@ -781,13 +824,13 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
 
     ++item;
 
-    { // prepare (dynamic) trigger level marker line
+    {
         if ( !m_vaoGrid[ item ].isCreated() )
             m_vaoGrid[ item ].create();
         QOpenGLVertexArrayObject::Binder b( &m_vaoGrid[ item ] );
         m_grid.bind();
         program->enableAttributeArray( vertexLocation );
-        program->setAttributeBuffer( vertexLocation, GL_FLOAT, int( vaGrid.size() * sizeof( QVector3D ) ), 3 );
+        program->setAttributeBuffer( vertexLocation, GL_FLOAT, int( vaGrid.size() * sizeof( QVector3D ) ), 3, 0 );
     }
     if ( pressed && index >= 0 ) {
         triggerLineColor = view->colors->voltage[ unsigned( index ) ];
@@ -810,27 +853,23 @@ void GlScope::drawGrid() {
     gl->glLineWidth( 1 );
 
     int item = 3;
-    // Trigger level (draw this on top of the other items)
     m_vaoGrid[ item ].bind();
     m_program->setUniformValue( colorLocation, triggerLineColor );
     gl->glDrawArrays( GL_LINES, 0, gridDrawCounts[ item ] );
     m_vaoGrid[ item ].release();
 
-    // Grid
     item = 0;
     m_vaoGrid[ item ].bind();
     m_program->setUniformValue( colorLocation, view->colors->grid );
     gl->glDrawArrays( GL_POINTS, 0, gridDrawCounts[ item ] );
     m_vaoGrid[ item ].release();
 
-    // Axes and div crosses
     ++item;
     m_vaoGrid[ item ].bind();
     m_program->setUniformValue( colorLocation, view->colors->axes );
     gl->glDrawArrays( GL_LINES, 0, gridDrawCounts[ item ] );
     m_vaoGrid[ item ].release();
 
-    // Border
     ++item;
     m_vaoGrid[ item ].bind();
     m_program->setUniformValue( colorLocation, view->colors->border );
@@ -843,7 +882,7 @@ void GlScope::drawVertices( QOpenGLFunctions *gl, int marker, QColor color ) {
     m_program->setUniformValue( colorLocation, ( marker == selectedCursor ) ? color : color.darker() );
     gl->glDrawArrays( GL_LINE_LOOP, GLint( marker * VERTICES_ARRAY_SIZE ), GLint( VERTICES_ARRAY_SIZE ) );
     if ( cursorInfo[ size_t( marker ) ]->shape == DsoSettingsScopeCursor::RECTANGULAR ) {
-        color.setAlphaF( 0.5 ); // increase this value if you encounter hardcopy/print artefacts (?)
+        color.setAlphaF( 0.5 );
         m_program->setUniformValue( colorLocation, color.darker() );
         gl->glDrawArrays( GL_TRIANGLE_FAN, GLint( marker * VERTICES_ARRAY_SIZE ), GLint( VERTICES_ARRAY_SIZE ) );
     }
@@ -899,7 +938,7 @@ void GlScope::drawHistogramChannelGraph( ChannelID channel, Graph &graph, int hi
     Graph::VaoCount &h = graph.vaoHistogram[ channel ];
 
     QOpenGLVertexArrayObject::Binder b( h.first );
-    const GLenum dMode = GL_LINES; // display histogram with lines
+    const GLenum dMode = GL_LINES;
     context()->functions()->glDrawArrays( dMode, 0, h.second );
 }
 
