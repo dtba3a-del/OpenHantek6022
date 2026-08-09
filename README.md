@@ -1,48 +1,38 @@
-# OpenHantek6022 — XY Recorder Branch
+# CtPU-multi-curveXY
 
-**База:** OpenHantek6022 v3.4.0 (Qt5)  
-**Ветка:** `xy-recorder-qt5`  
-**Назначение:** цифровой самописец (pen-plotter) CH1→X, CH2→Y с каскадной децимацией и потоковой записью на диск.
+**База:** [OpenHantek/OpenHantek6022 @ 3.4.0](https://github.com/OpenHantek/OpenHantek6022/tree/3.4.0) (официальный апстрим, Qt5)
+**Ветка:** `CtPU-multi-curveXY`
 
-## Чем отличается от официального релиза
+Добавляет к официальному 3.4.0 три фичи и три класса фиксов, ничего не убирая из стандартной функциональности (T-Y, RLC, XYэкспорт).
 
-| Фича | Официальный v3.4.0 | Этот бранч |
-|---|---|---|
-| XY-режим | Мгновенный снимок кадра (без накопления) | Непрерывная траектория, кадр за кадром |
-| Децимация | Нет / простое прореживание | Каскадный FIR box-car (anti-aliasing) |
-| Режимы записи | — | Finite (лист) и Tape (лента с потоковым сбросом на диск) |
-| Экспорт | — | Чистый XY-CSV + полный заголовок настроек осциллографа |
-| Envelope / Sigma | — | Peak envelope и скользящее σ |
-| Управление | — | Master axis, slew rate, target points/density |
+## Что добавлено
 
-## Новые и изменённые файлы
-openhantek/src/xyrecorder.h                 (новый)
-openhantek/src/xyrecorder.cpp               (новый)
-openhantek/src/dsowidget.h                  (изменён)
-openhantek/src/dsowidget.cpp                (изменён)
-openhantek/src/glscope.cpp                    (изменён)
-openhantek/src/glscope.h                      (изменён — поля m_vaoXY, m_xyBuffer, xyPointCount)
-openhantek/src/docks/HorizontalDock.h         (изменён)
-openhantek/src/docks/HorizontalDock.cpp       (изменён)
-openhantek/src/mainwindow.cpp                 (изменён)
-openhantek/src/scopesettings.h              (изменён — поле xyContinuous)
-openhantek/CMakeLists.txt                     (изменён — добавлен xyrecorder.cpp)
-docs/XYRecorder_User_Guide.md                 (новый)
-docs/XYRecorder_Technical_Documentation.md    (новый)
+- **XY continuous recorder** — непрерывный самописец (pen-plotter), каскадная децимация, потоковая запись.
+- **CtPU** (Conversion to Physical Units) — линейное преобразование АЦП-отсчётов в физические величины (°C, kPa, A, W, ...) на канал, настраивается через `Oscilloscope → Settings → CtPU / Math → CtPU`.
+- **Math Stack** — 4 виртуальных математических канала (M1–M4), базовые (+-/*) операции над произвольными парами каналов, свой CtPU-юнит на каждый. `... → CtPU / Math → Math`.
+- **Multi-curve XY** — до 4 независимых XY-кривых, произвольная пара каналов (включая math-каналы) на кривую. `... → CtPU / Math → XY`.
+CCtPU (Calibrated Conversion to Physical Units)установка значений преобразования по эталонным мерам линейное преобразование АЦП-отсчётов в физические величины (°C, kPa, A, W, ...) на канал, настраивается через `Oscilloscope → Settings → CtPU/CCtPU`.
+
+
+## Прошивка
+
+В самой ветке (`openhantek/res/firmware/isds205b-firmware.hex`) —  **fx2adc** (Steve Markgraf) прошивка ISDS205B, протестированная на реальном железе в различных сценариях. Заменяет стоковую прошивку апстрима с обнаруженной  ошибкой - не верные значения амплитуд для диапазонов 100мВ/50мВ/20мВ.
+
+Отдельно, в **[pre-release `CCtPU_v.0.1.zip`](https://github.com/dtba3a-del/OpenHantek6022/releases/tag/CCtPU_v.0.1.zip)** — готовая сборка для FX2-осциллографов (ISDS205 и совместимые), использующая **fx2adc** (Steve Markgraf) вместо штатной прошивки — альтернативный путь для этого класса железа, показавший более стабильную работу именно на нём. Туда же входит `Zadig` для установки WinUSB/libusb-драйвера.
 
 ## Сборка
 
-Как обычно для Qt5-ветки OpenHantek6022:
-
 ```bash
+git clone --branch CtPU-multi-curveXY https://github.com/dtba3a-del/OpenHantek6022.git
+cd OpenHantek6022
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . -j$(nproc)
+cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug ..
+mingw32-make -j$(nproc)
 ```
-## Документация
-docs/XYRecorder_User_Guide.md — инструкция пользователя (рус.)
-docs/XYRecorder_Technical_Documentation.md — техническое описание каскада, режимов, интеграции (рус.)
+
+Собрано и запущено в этом же процессе разработки (headless Linux/Qt5/Xvfb, `_GLIBCXX_ASSERTIONS` включён): 3/3 юнит-теста (`ctest`), демо-режим стабилен, все вкладки настроек CtPU/Math/XY проверены интерактивно (скриншоты + клики через `xdotool`).
+
+
 ## Статус
-Qt5 / C++17
-DCO sign-off не выполнен (это неофициальный экспериментальный форк)
-Настройки рекордера не сохраняются между сессиями (только флаг xyContinuous)
+
+Pre-release. Возможны регрессии, нехарактерные для стабильных выпусков апстрима.
