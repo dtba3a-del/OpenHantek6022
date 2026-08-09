@@ -1,38 +1,63 @@
 # CtPU-multi-curveXY
+### Universal Measurement Frontend · Research Preview
 
-**База:** [OpenHantek/OpenHantek6022 @ 3.4.0](https://github.com/OpenHantek/OpenHantek6022/tree/3.4.0) (официальный апстрим, Qt5)
-**Ветка:** `CtPU-multi-curveXY`
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Qt5](https://img.shields.io/badge/Qt-5.5+-green.svg)](https://www.qt.io)
+[![fx2adc](https://img.shields.io/badge/Firmware-fx2adc-orange.svg)](https://github.com/steve-m/fx2adc)
 
-Добавляет к официальному 3.4.0 три фичи и три класса фиксов, ничего не убирая из стандартной функциональности (T-Y, RLC, XYэкспорт).
+&gt; **Research Preview.** CtPU-multi-curveXY is an experimental branch exploring the frontier of software-defined instrumentation. Capabilities evolve based on community signal and hardware feedback. Not recommended for safety-critical or certified metrology workflows without independent validation.
 
-## Что добавлено
+---
 
-- **XY continuous recorder** — непрерывный самописец (pen-plotter), каскадная децимация, потоковая запись.
-- **CtPU** (Conversion to Physical Units) — линейное преобразование АЦП-отсчётов в физические величины (°C, kPa, A, W, ...) на канал, настраивается через `Oscilloscope → Settings → CtPU / Math → CtPU`.
-- **Math Stack** — 4 виртуальных математических канала (M1–M4), базовые (+-/*) операции над произвольными парами каналов, свой CtPU-юнит на каждый. `... → CtPU / Math → Math`.
-- **Multi-curve XY** — до 4 независимых XY-кривых, произвольная пара каналов (включая math-каналы) на кривую. `... → CtPU / Math → XY`.
-CCtPU (Calibrated Conversion to Physical Units)установка значений преобразования по эталонным мерам линейное преобразование АЦП-отсчётов в физические величины (°C, kPa, A, W, ...) на канал, настраивается через `Oscilloscope → Settings → CtPU/CCtPU`.
+## Frontier Capabilities
 
+| Module | Status | Description |
+|--------|--------|-------------|
+| **CtPU** | Stable | Channel-to-Physical-Unit conversion. Any sensor with analog output → SI units via `k·x+b`. No sketches. No IDE. |
+| **CCtPU** | Stable | Two-point calibration (Zero / Span) against a physical reference standard. Datasheet-optional metrology. |
+| **multi-curveXY** | Stable | 4 concurrent curves (2 real + 2 math) with arbitrary real/math cascades. V, A, P, R — simultaneously. |
+| **XY Recorder** | Stable | Continuous chart-recorder acquisition. Anti-aliased cascade decimation. Pure XY CSV export. Tape & Sheet modes. |
+| **fx2adc** | Stable | Alternative FX2 firmware for ISDS205 and compatible scopes. 30 MSPS, improved stability over stock Hantek firmware. |
+| **RCL Broadband** | In Development | Wideband impedance analysis via swept excitation. |Z(f)|, φ(f), ESR — from audio to RF front-end. |
+| **I/Q Decode** | Concept | R820T tuner integration. 42–1002 MHz downconversion + undersampling I/Q demodulation via fx2adc. |
+| **3D Waterfall** | Concept | Z-axis temporal stacking for channel separation. Hardware-accelerated depth visualization. |
 
-## Прошивка
+---
 
-В самой ветке (`openhantek/res/firmware/isds205b-firmware.hex`) —  **fx2adc** (Steve Markgraf) прошивка ISDS205B, протестированная на реальном железе в различных сценариях. Заменяет стоковую прошивку апстрима с обнаруженной  ошибкой - не верные значения амплитуд для диапазонов 100мВ/50мВ/20мВ.
+## What This Enables
 
-Отдельно, в **[pre-release `CCtPU_v.0.1.zip`](https://github.com/dtba3a-del/OpenHantek6022/releases/tag/CCtPU_v.0.1.zip)** — готовая сборка для FX2-осциллографов (ISDS205 и совместимые), использующая **fx2adc** (Steve Markgraf) вместо штатной прошивки — альтернативный путь для этого класса железа, показавший более стабильную работу именно на нём. Туда же входит `Zadig` для установки WinUSB/libusb-драйвера.
+**Without IDE. Without sketches. With or without datasheets.**
 
-## Сборка
+Connect a sensor. Apply a physical reference. Read SI units directly.
+
+- LM335 → °C / K (CtPU, formula from datasheet)
+- Strain gauge → kg / N (CCtPU, calibrated against standard weights)
+- Current shunt → A → P = V·A, R = V/A (multi-curveXY, limit 4 curves)
+- R820T + fx2adc → SDR analyzer 42–1002 MHz (I/Q decode, concept)
+
+XY Recorder captures long-duration transients: battery charge cycles, thermal profiles, mechanical hysteresis — streamed to disk as pure XY CSV.
+
+---
+
+## Research Preview Notice
+
+This branch is an **evaluation target**, not a production-certified instrument. Features iterate based on:
+
+- Hardware feedback from ISDS205 / FX2 deployments
+- Community signal on XY recorder and multi-curve workflows
+- Integration tests with fx2adc and third-party tuners
+
+Behavior may shift between releases as the architecture converges. For reproducible measurement campaigns, pin to a tagged release and document the commit hash.
+
+---
+
+## Quick Start
 
 ```bash
-git clone --branch CtPU-multi-curveXY https://github.com/dtba3a-del/OpenHantek6022.git
-cd OpenHantek6022
+# Qt6 build
 mkdir build && cd build
-cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug ..
-mingw32-make -j$(nproc)
-```
+cmake .. -DCMAKE_PREFIX_PATH=/path/to/Qt6
+make -j$(nproc)
 
-Собрано и запущено в этом же процессе разработки (headless Linux/Qt5/Xvfb, `_GLIBCXX_ASSERTIONS` включён): 3/3 юнит-теста (`ctest`), демо-режим стабилен, все вкладки настроек CtPU/Math/XY проверены интерактивно (скриншоты + клики через `xdotool`).
-
-
-## Статус
-
-Pre-release. Возможны регрессии, нехарактерные для стабильных выпусков апстрима.
+# fx2adc firmware (ISDS205) automatically load to RAM via OpenHantek GUI
+Windows binaries include Zadig 2.9 for WinUSB/libusb driver setup.
