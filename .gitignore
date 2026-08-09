@@ -1,0 +1,36 @@
+*.o
+*.so
+.*~
+*~
+*.bak
+*.orig
+*.new
+*.old
+*.diff
+CMakeLists.txt.user
+build
+firmware/hex
+.cache
+*.json
+*.kate-swp
+.directory
+*.autosave
+ui_*.h
+*.sh
+.DS_Store
+```gitignore
+# --- XY Recorder branch additions ---
+# Recorded data files
+*.csv
+*.xy
+/tape/
+/recordings/
+
+# Qt Creator user-specific
+*.pro.user
+*.pro.user.*
+CMakeLists.txt.user
+
+# Build artifacts (extra safety)
+/build*/
+/cmake-build*/

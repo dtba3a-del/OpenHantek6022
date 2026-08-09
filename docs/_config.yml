@@ -1,0 +1,15 @@
+title: OpenHantek 6022
+description: Software for Hantek 6022 and compatible (Voltcraft/Darkwire/Protek/Acetech) USB digital signal oscilloscopes
+google_analytics:
+show_downloads: true
+theme: jekyll-theme-leap-day
+
+gems:
+  - jekyll-mentions
+
+exclude:
+  - .gitignore
+  - CNAME
+  - readme.md
+
+logo: images/OpenHantek6022.png
