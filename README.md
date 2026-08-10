@@ -58,6 +58,39 @@ Behavior may shift between releases as the architecture converges. For reproduci
 mkdir build && cd build
 cmake .. -DCMAKE_PREFIX_PATH=/path/to/Qt6
 make -j$(nproc)
+```
 
-# fx2adc firmware (ISDS205) automatically load to RAM via OpenHantek GUI
-Windows binaries include Zadig 2.9 for WinUSB/libusb driver setup.
+**Windows:** binaries include Zadig 2.9 for WinUSB/libusb driver setup.  
+**fx2adc:** firmware auto-loads to RAM via OpenHantek GUI on device connect.
+
+---
+
+## Research Preview Notice
+
+This branch is an **evaluation target**, not a production-certified instrument. Features iterate based on:
+
+- Hardware feedback from ISDS205 / FX2 deployments
+- Community signal on XY recorder and multi-curve workflows
+- Integration tests with fx2adc and third-party tuners
+
+Behavior may shift between releases as the architecture converges. For reproducible measurement campaigns, pin to a tagged release and document the commit hash.
+
+---
+
+## Access
+
+The project operates on three levels. Each reflects a different relationship to the iteration cycle.
+
+**Research Preview** — GPL-3.0 source, self-service build, public evaluation snapshots. You have the full toolchain, the documentation, and the license. This is the frontier itself. No gatekeeping.
+
+**Frontier Access** — Validated binaries, working calibration modules, and early release candidates. Direct hardware feedback channel. Weighted roadmap input. For practitioners who need the iteration stream without the build overhead.
+
+Entry signal starts at $50. Granted at maintainer discretion based on trajectory alignment.
+
+**Protocol Partnership** — Co-design on experimental modules (RCL, I/Q, 3D), dedicated metrological validation cycles, and research partner recognition. For teams that need the research vector to intersect with their product roadmap.
+
+Custom allocation. Contact via requisites in `.github/FUNDING.yml`.
+
+---
+
+*CtPU-multi-curveXY is maintained independently of upstream OpenHantek6022. This branch focuses on software-defined instrumentation, metrological frontends, and RF integration — distinct from the oscilloscope-centric scope of the original project.*
